@@ -4,7 +4,7 @@ function post_taxonomy_terms_sc( $atts ) {
 
     $defaults = [
         'post_id' => get_the_id(),
-		'taxonomy' => 'category',
+	'taxonomy' => 'category',
         'before' => '',
         'sep' => ', ',
         'after' => '',
@@ -15,13 +15,13 @@ function post_taxonomy_terms_sc( $atts ) {
         'child' => 'no',
         'order' => 'default'
     ];
-
-	$atts = shortcode_atts($defaults, $atts, 'post_taxonomy_terms');
+	
+    $atts = shortcode_atts($defaults, $atts, 'post_taxonomy_terms');
     //define array to save the name or link of the taxonomy terms
     $taxonomyTerms = array();
     //get all the terms for the current post
     $terms = get_the_terms( $atts['post_id'], $atts['taxonomy']);
-    //generate a unique modal ID for displaying overflow of terms if num is specified
+    //generate a unique modal ID and Modal Title and Description for displaying overflow of terms if num attribute is specified
     $modalId = uniqid('modal-', false);
     $modalTitle = 'Not Set';
     $modalDesc = 'Not Set';
@@ -45,7 +45,7 @@ function post_taxonomy_terms_sc( $atts ) {
                     $linkTerm = '<a href="' . esc_url( get_term_link( $term->slug, $atts['taxonomy'] ) ) . '">' . esc_html( $term->name ) . '</a>';
                     array_push($taxonomyTerms, $linkTerm );
                 }
-            //for this, order should be set to "parents-children", but it's not implemented yet to require that
+            //display parent terms first and then children terms (if desired)
             }else{
                 if($atts['parent'] == 'yes'){
                     foreach ($terms as $term) {
@@ -58,7 +58,6 @@ function post_taxonomy_terms_sc( $atts ) {
                         }
                     }
                 }
-                // if user wants to display child terms, add them to the array after parent terms have been added
                 if($atts['child'] != 'no'){
                     foreach ($terms as $term) {
                         if(0 != $term->parent){
