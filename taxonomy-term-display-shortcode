@@ -1,0 +1,138 @@
+//custom shortcode to display taxonomy terms
+//src: https://wpquestions.com/How_to_show_only_parent_terms_with_get_the_term_list_shortcode/27858
+function post_taxonomy_terms_sc( $atts ) {
+
+    $defaults = [
+        'post_id' => get_the_id(),
+		'taxonomy' => 'category',
+        'before' => '',
+        'sep' => ', ',
+        'after' => '',
+        'linked' => 'yes',
+        'short' => 'no',
+        'num' => 'all',
+        'parent' => 'yes',
+        'child' => 'no',
+        'order' => 'default'
+    ];
+
+	$atts = shortcode_atts($defaults, $atts, 'post_taxonomy_terms');
+    //define array to save the name or link of the taxonomy terms
+    $taxonomyTerms = array();
+    //get all the terms for the current post
+    $terms = get_the_terms( $atts['post_id'], $atts['taxonomy']);
+    //generate a unique modal ID for displaying overflow of terms if num is specified
+    $modalId = uniqid('modal-', false);
+    $modalTitle = 'Not Set';
+    $modalDesc = 'Not Set';
+
+    if($atts['taxonomy'] == 'opportunity'){
+        $modalTitle = 'All Opportunities';
+        $modalDesc = 'All of the potential opportunities for making/saving money that we\'ve tagged on this platform.';
+    }else if($atts['taxonomy'] == 'country'){
+        $modalTitle = 'All Supported Locations';
+        $modalDesc = 'All of the locations this platform is accessible from. User experience may vary by location.';
+    }else if($atts['taxonomy'] == 'device'){
+        $modalTitle = 'All Supported Devices';
+        $modalDesc = 'All of the devices you can use to access this platform. User experience may vary by device.';
+    }
+    //display term names with links
+    if($atts['linked'] == 'yes'){
+        if (is_array($terms)){
+            //display all terms (parent and children) in default order
+            if($atts['parent'] == 'yes' && $atts['child'] != 'no' && $atts['order'] == 'default'){
+                foreach ($terms as $term) {
+                    $linkTerm = '<a href="' . esc_url( get_term_link( $term->slug, $atts['taxonomy'] ) ) . '">' . esc_html( $term->name ) . '</a>';
+                    array_push($taxonomyTerms, $linkTerm );
+                }
+            //for this, order should be set to "parents-children", but it's not implemented yet to require that
+            }else{
+                if($atts['parent'] == 'yes'){
+                    foreach ($terms as $term) {
+                        //if the curent term is parent
+                        if (0 == $term->parent ) {
+                            //create the link for add to the taxonomyTerms array
+                            $linkTerm = '<a href="' . esc_url( get_term_link( $term->slug, $atts['taxonomy'] ) ) . '">' . esc_html( $term->name ) . '</a>';
+                            //add the link of the term to the taxonomyTerms array
+                            array_push($taxonomyTerms, $linkTerm );
+                        }
+                    }
+                }
+                // if user wants to display child terms, add them to the array after parent terms have been added
+                if($atts['child'] != 'no'){
+                    foreach ($terms as $term) {
+                        if(0 != $term->parent){
+                            $linkTerm = '<a href="' . esc_url( get_term_link( $term->slug, $atts['taxonomy'] ) ) . '">' . esc_html( $term->name ) . '</a>';
+                            array_push($taxonomyTerms, $linkTerm );
+                        }
+                    }
+                }
+            }
+        }
+    //display term names without links
+    }else{
+        if (is_array($terms)){
+            if($atts['parent'] == 'yes' && $atts['child'] != 'no' && $atts['order'] == 'default'){
+                foreach ($terms as $term) {
+                    array_push($taxonomyTerms, $term->name );
+                }
+            }else{
+                if($atts['parent'] == 'yes'){
+                    foreach ($terms as $term) {
+                        if (0 == $term->parent ) {
+                            array_push($taxonomyTerms, $term->name );
+                        }
+                    }
+                }
+                if($atts['child'] != 'no'){
+                    foreach ($terms as $term) {
+                        if(0 != $term->parent){
+                            array_push($taxonomyTerms, $term->name );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    //counts the number of Country terms so we can later check how many are selected
+    $countryTerms = wp_count_terms( 'country', array(
+        'hide_empty'=> false,
+        'parent'    => 0
+    ) );
+    
+    //if all Countries terms are selected for the post, output "Worldwide" 
+    if($atts['taxonomy'] == 'country' && count($taxonomyTerms) == $countryTerms){
+        return "<span class=\"post-taxonomy-terms-sc\">" . "Worldwide" . "</span>";
+    }
+    //if more than 10 of the Countries terms are selected for the post, and short output is enabled, output "International"
+    elseif ($atts['taxonomy'] == 'country' && count($taxonomyTerms) > 10 && $atts['short'] == 'yes'){
+        return "<span class=\"post-taxonomy-terms-sc\">" . "International (" . count($taxonomyTerms) . " countries/regions)" . "</span>";
+    }
+    //in all other cases, output all parent terms
+    else{
+        //if certain number of terms is desired, slice the array to that desired number, otherwise output all
+        if(is_numeric($atts['num'])){
+            $customNumTaxonomyTerms = array_slice($taxonomyTerms, 0, intval($atts['num']));
+            //result. Create the OutPut result...
+            // add the before, ajoin our array taxonomyTerms separated by the character defined in the attributes and add the after
+            $outTaxonomyTerms = $atts['before'] . join($atts['sep'], $customNumTaxonomyTerms) . $atts['after'];
+            //count number of remaining terms for later use
+            $numOthers = count($taxonomyTerms) - count($customNumTaxonomyTerms);
+        }else{
+            $outTaxonomyTerms = $atts['before'] . join($atts['sep'], $taxonomyTerms) . $atts['after'];
+        }
+        /*if user wants to display certain number of terms, output them and then, if there are remaining terms, put them 
+        * in a modal with a button that shows the remaining number. Otherwise, output all terms */
+        if(is_numeric($atts['num']) && $numOthers > 0){
+            return "<span class=\"post-taxonomy-terms-sc\">" . $outTaxonomyTerms . "</span>" . $atts['sep'] . "<button class=\"my-modal-button\" href=\"#" . $modalId . "\">" . "+ " . $numOthers . " Others" . "</button> <div class=\"my-modal\" id=\"" . $modalId . "\">" . "<div class=\"my-modal-content\">" 
+            . "<div class=\"my-modal-header\">" . "<h4 class=\"my-modal-title\">" . $modalTitle . "</h4>" . "<span class=\"close-my-modal\">×</span>" . "</div>" . "<div class=\"my-modal-desc\">" . $modalDesc . "</div>" . "<div class=\"my-modal-body\">" 
+            . post_taxonomy_terms_sc(array('post_id' => $atts['post_id'], 'taxonomy' => $atts['taxonomy'], 'before' => $atts['before'], 'sep' => $atts['sep'], 'after' => $atts['after'], 'linked' => $atts['linked'], 'short' => 'no', 'num' => 'all', 'parent' => $atts['parent'], 'child' => $atts['child'], 'order' => $atts['order'])) 
+            . "</div></div></div>";
+        }else{
+            return "<span class=\"post-taxonomy-terms-sc\">" . $outTaxonomyTerms . "</span>";
+        }
+    }
+}
+add_shortcode( 'post_taxonomy_terms', 'post_taxonomy_terms_sc' );
+//end shortcode to display custom taxonomy terms
